@@ -3,6 +3,7 @@ library(tidyverse)
 library(RColorBrewer)
 library(rasterVis)
 library(viridis)
+library(rworldmap)
 
 #####################################################################
 # Plotting priori areas
@@ -337,3 +338,94 @@ quantile(com$irreplacecable_areas_birds_GBIF, na.rm = TRUE)
 quantile(com$irreplacecable_areas_butterflies_GBIF, na.rm = TRUE)
 quantile(com$irreplacecable_areas_birds_combined, na.rm = TRUE)
 quantile(com$irreplacecable_areas_butterflies_combined, na.rm = TRUE)
+
+#####################################################
+# Supplementary figures
+#####################################################
+# Data distribution [Figure S1]
+# Reading data file
+data <- read_csv("data/combinedRecords_thinned_GBIF_fb_up.csv")
+
+# Inspecting data
+head(data)
+
+# Getting Bangladesh map data
+world <- getMap(resolution = "low")
+bd <- world[world@data$NAME %in% "Bangladesh", ] 
+
+ggplot(data, aes(lon, lat, col = source)) +
+  geom_point(size = 0.05) + theme_classic() +
+  xlab("Longitude") +ylab("Latitude") + scale_color_manual(values = c("deepskyblue4", "darkgoldenrod1")) +
+  geom_polygon(data = bd, aes(x = long, y = lat, group = group),fill = NA, colour = "black") +
+  coord_quickmap() + xlim(88, 93) + ylim(20, 27) + 
+  theme(legend.title = element_blank(), legend.position = "none") + facet_wrap(~source)
+
+ggsave("figures/data_dist_supp_fig.png")
+
+#####################################################
+# Spatial prioritisation for species that we obtained in both approaches [Figure S2]
+library(raster)
+library(RColorBrewer)
+library(rasterVis)
+library(viridis)
+
+# Loading rasters
+bird <- raster("outputs/spatial_prioritization_birds_combined_species_specific.tif")
+butterflies <- raster("outputs/spatial_prioritization_butterflies_combined_species_specific.tif")
+
+s <- stack(bird, butterflies)
+
+png("figures/GraphicalAbstract.png")
+
+levelplot(s,
+          layout = c(1,1),
+          colorkey=list(
+            space='right'),
+          col.regions=viridis,    
+          par.settings=list(
+            strip.border=list(col='transparent'),
+            strip.background=list(col='transparent'),
+            axis.line=list(col='transparent')
+          ),
+          scales=list(draw=FALSE),
+          names.attr=rep('', nlayers(s)))
+
+dev.off()
+
+# I finally created this figure in ArcMap
+#####################################################
+# Land-cover type and prioritisation [Figure S3]
+# Reading data file
+data <- read_csv("outputs/merge_lc_priori.csv")
+head(data) 
+
+data %>% 
+  dplyr::mutate(x = fct_reorder(lc, per)) %>% 
+  ggplot( aes(x, per)) +
+  geom_bar(stat = "identity", position = "identity", fill = "darkgoldenrod1") +
+  theme_classic() + xlab("") + ylab("")  +
+  theme(legend.position = "none", legend.title = element_blank(),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + facet_wrap(~source_taxa)
+
+ggsave("figures/lc_priori_supp_fig.png")
+
+#####################################################
+# HFP index and prioritisation [Figure S4]
+# Reading data file
+data <- read_csv("outputs/combine_hfp_priori.csv")
+head(data) 
+
+bin_size <- 1
+
+data %>% 
+  filter(value == 1) %>% 
+  mutate(bin_y = factor(hfp_bd_re%/%bin_size)) %>% 
+  ggplot(aes(bin_y, value)) +
+  geom_bar(stat = "identity", fill = "darkgoldenrod1") +
+  theme_classic() + 
+  labs(x = "Human footprint index", y = "Number of priority cells")  +
+  theme(legend.position = "none", legend.title = element_blank()) + facet_wrap(~group) +
+  scale_x_discrete(breaks = c(0, 10, 20, 30, 40, 50))
+
+ggsave("figures/hfp_priori_supp_fig.png")
+
